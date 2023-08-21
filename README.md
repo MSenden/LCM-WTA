@@ -1,4 +1,4 @@
-# Laminar Column Model - Layered Structure of Cortex Explains Reversal Dynamics in Bistable Perception
+# Laminar Column Model for Bistable Perception
 Dynamic mean field implementation of the *Laminar Column Model* for bistable perception. A jupyter notebook is provided to simulate single trails with layer specific external stimulation.
 
 # Prerequisites
