@@ -9,6 +9,17 @@ warnings.filterwarnings("ignore")
 
 
 def running_mean(x, N, outliers=False):
+    """
+    Args:
+    x (array):          input
+    N (int):            window size
+    outliers (bool):    remove outliers
+
+    Returns:
+    (array):            running mean
+
+    """
+
     if outliers==False:
         mean = np.mean(x)
         for i in range(len(x)):
@@ -20,9 +31,16 @@ def running_mean(x, N, outliers=False):
 
 # dominance time
 def dominance_time(A1, A2, dt=1e-4, cutoff=.1):
-    '''
-    population along first dimension, time along second dimension
-    '''
+    """
+    Args:
+    A1 (array):         activity of column 1; shape=(num_populations, num_time_steps)
+    A2 (array):         activity of column 2; shape=(num_populations, num_time_steps)
+    dt (float):         time step
+    cutoff (float):     cutoff for dominance interval
+
+    Returns:
+    DT (array):         dominance intervals
+    """
 
     # get switching points
     A1_smooth = running_mean(A1, N=10000)
@@ -52,6 +70,17 @@ def dominance_time(A1, A2, dt=1e-4, cutoff=.1):
         return np.array([len(A1)*dt])  # WTA
 
 def alternation_rate(A1, A2, dt=1e-4, cutoff=.1):
+    """
+    Args:
+    A1 (array):         activity of column 1; shape=(num_populations, num_time_steps)
+    A2 (array):         activity of column 2; shape=(num_populations, num_time_steps)
+    dt (float):         time step
+    cutoff (float):     cutoff for dominance interval
+
+    Returns:
+    AR (float):         alternation rate
+    """
+
     A_diff = running_mean(A1, N=1000) - running_mean(A2, N=1000)
 
     AL = 0
@@ -73,6 +102,17 @@ def alternation_rate(A1, A2, dt=1e-4, cutoff=.1):
     return AL
 
 def predominance_time(A1, A2, dt=1e-4):
+    """
+    Args:
+    A1 (array):         activity of column 1; shape=(num_populations, num_time_steps)
+    A2 (array):         activity of column 2; shape=(num_populations, num_time_steps)
+    dt (float):         time step
+
+    Returns:
+    A1_PD (float):      predominance time of column 1
+    A2_PD (float):      predominance time of column 2
+    """
+
     A_diff = running_mean(A1, N=1000) - running_mean(A2, N=1000)
 
     A1_PD = []
@@ -99,6 +139,21 @@ def predominance_time(A1, A2, dt=1e-4):
 
 
 def fit_gamma(y, t_sim, hist=True, plot=True, fig=None, color='#c44343ff'):
+    """
+    Args:
+    y (array):          data
+    t_sim (float):      simulation time
+    hist (bool):        plot histogram
+    plot (bool):        plot pdf
+    fig (figure):       figure
+    color (str):        color
+
+    Returns:
+    param (tuple):      gamma distribution parameters
+    moment (list):      gamma distribution moments
+    [x, pdf_fitted]:    pdf of fitted gamma distribution
+    """
+    
     gamma = stats.gamma
 
     x = np.linspace(0.00001, y.max()+y.max()*0.25, 100)
