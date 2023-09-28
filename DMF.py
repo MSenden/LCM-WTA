@@ -10,6 +10,15 @@ Dynamic Mean Field
 """
 
 def get_params(J_local=87.8e-3, J_lateral=87.8e-3, area='MT'):
+    """
+    Args:
+    J_local (float):    local synaptic strength
+    J_lateral (float):  lateral synaptic strength
+    area (str):         brain area
+    
+    Returns:
+    params (dict):      model Args
+    """
 
     params = {
         'sigma':    0.5,            # noise amplitude
@@ -102,6 +111,17 @@ def get_params(J_local=87.8e-3, J_lateral=87.8e-3, area='MT'):
     return params
 
 def set_stimulation(stim, column, layer, nu, params):
+    """
+    Args:
+    stim (array):   external input
+    column (str):   column name
+    layer (str):    layer name
+    nu (float):     input strength
+    params (dict):  model Args
+
+    Returns:
+    stim (array):   external input
+    """
 
     if column=='H':
         idx = 0
@@ -124,6 +144,16 @@ def set_stimulation(stim, column, layer, nu, params):
     return stim
 
 def set_vis(stim, column, nu, params):
+    """
+    Args:
+    stim (array):   external input
+    column (str):   column name
+    nu (float):     input strength
+    params (dict):  model Args
+
+    Returns:
+    stim (array):   external input
+    """
 
     if column=='H':
         idx = 0
@@ -143,9 +173,15 @@ def set_vis(stim, column, nu, params):
 
 def update(state, params, stim, dt=1e-4):
     """
-    state: I, A, H, R, N
-    params: model paramaters
-    input: external input; shape=(M)
+    Args:
+    state (dict):   model state (I, A, H, R, N)
+
+    params (dict):  model parameters
+    stim (array):   external input; shape=(M)
+    dt (float):     time step
+
+    Returns:
+    state (dict):   model state
     """
 
     state['I'] += dt * (-state['I'] / params['tau_s'])      # self inhibition
