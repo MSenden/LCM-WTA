@@ -2,7 +2,7 @@ import numpy as np
 from scipy.integrate import odeint
 from scipy.linalg import block_diag
 
-from src.utils import gain_function
+from src.utils import GainFunctionParams, compute_firing_rate
 
 
 class CoupledColumns:
@@ -11,38 +11,50 @@ class CoupledColumns:
 
         area = area.lower()
 
+        self._intialize_basic_parameters(column_parameters)
+        self._initilize_population_parameters(column_parameters, area)
+        self._initialize_connection_probabilities(column_parameters)
+        self._initialize_synapses(column_parameters)
+
+        self._build_all_weights()
+
+    def _intialize_basic_parameters(self, column_parameters: dict) -> None:
+        """
+        Initialize basic parameters for the columns.
+        """
+        # basic parameters
         self.background_drive = column_parameters['background_drive']
         self.adaptation_strength = np.array(
             column_parameters['adaptation_strength'])
-        self.internal_connection_probabilities = np.array(
-            column_parameters['connection_probabilities']['internal'])
-        self.lateral_connection_probability = column_parameters[
-            'connection_probabilities']['lateral']
-        self.background_synapse_counts = np.array(
-            column_parameters['synapse_counts']['background'])
-        self.feedforward_synapse_counts = np.array(
-            column_parameters['synapse_counts']['feedforward'])
-        self.baseline_synaptic_strength = column_parameters[
-            'synaptic_strength']['baseline']
-        self.internal_synaptic_strength = column_parameters[
-            'synaptic_strength']['internal']
-        self.lateral_synaptic_strength = column_parameters[
-            'synaptic_strength']['lateral']
-        self.population_sizes = np.array(
-            column_parameters['population_size'][area])
+
+        # time constants and membrane resistance
         self.time_constants = column_parameters['time_constants']
         self.resistance = self.time_constants['membrane'] / column_parameters[
             'capacitance']
 
-        self.gain_function_parameters = column_parameters['gain_function']
+        # Gain function parameters
+        self.gain_function_parameters = GainFunctionParams(
+            **column_parameters['gain_function'])
 
+    def _initilize_population_parameters(self, column_parameters: dict,
+                                         area: str) -> None:
+        """
+        Initialize the population sizes for the columns.
+        """
+        self.population_sizes = np.array(
+            column_parameters['population_size'][area])
         self.num_populations = len(self.population_sizes) * 2
         self.adaptation_strength = np.tile(self.adaptation_strength, 2)
         self.population_sizes = np.tile(self.population_sizes, 2) / 2
-        self.background_synapse_counts = np.tile(
-            self.background_synapse_counts, 2)
-        self.feedforward_synapse_counts = np.tile(
-            self.feedforward_synapse_counts, 2)
+
+    def _initialize_connection_probabilities(self, column_parameters) -> None:
+        """
+        Initialize the connection probabilities for the columns.
+        """
+        self.internal_connection_probabilities = np.array(
+            column_parameters['connection_probabilities']['internal'])
+        self.lateral_connection_probability = column_parameters[
+            'connection_probabilities']['lateral']
         self.connection_probabilities = block_diag(
             self.internal_connection_probabilities,
             self.internal_connection_probabilities)
@@ -52,11 +64,32 @@ class CoupledColumns:
         self.connection_probabilities[9,
                                       0] = self.lateral_connection_probability
 
-        self.compute_recurrent_synapse_counts()
-        self.build_recurrent_synaptic_strength_matrix()
-        self.compute_weights()
+    def _initialize_synapses(self, column_parameters: dict) -> None:
+        """
+        Initialize the synapse counts and synaptic strengths for the columns.
+        """
 
-    def compute_recurrent_synapse_counts(self) -> None:
+        self.background_synapse_counts = np.array(
+            column_parameters['synapse_counts']['background'])
+        self.feedforward_synapse_counts = np.array(
+            column_parameters['synapse_counts']['feedforward'])
+
+        self.background_synapse_counts = np.tile(
+            self.background_synapse_counts, 2)
+        self.feedforward_synapse_counts = np.tile(
+            self.feedforward_synapse_counts, 2)
+
+        self.baseline_synaptic_strength = column_parameters[
+            'synaptic_strength']['baseline']
+        self.internal_synaptic_strength = column_parameters[
+            'synaptic_strength']['internal']
+        self.lateral_synaptic_strength = column_parameters[
+            'synaptic_strength']['lateral']
+
+        self._compute_recurrent_synapse_counts()
+        self._build_recurrent_synaptic_strength_matrix()
+
+    def _compute_recurrent_synapse_counts(self) -> None:
         """
         Compute the number of synapses for recurrent connections based on the
         connection probabilities and population sizes.
@@ -67,7 +100,7 @@ class CoupledColumns:
                 (np.outer(self.population_sizes, self.population_sizes))
             ) / self.population_sizes[:, None]
 
-    def build_recurrent_synaptic_strength_matrix(self) -> None:
+    def _build_recurrent_synaptic_strength_matrix(self) -> None:
         """
         Build the synaptic strength matrix.
         """
@@ -92,33 +125,33 @@ class CoupledColumns:
         self.recurrent_synaptic_strength[1, 8] = self.lateral_synaptic_strength
         self.recurrent_synaptic_strength[9, 0] = self.lateral_synaptic_strength
 
-    def compute_weights(self) -> None:
+    def _build_all_weights(self) -> None:
         """
-        Compute the weights for recurrent, background, external, and feedforward synapse counts and synaptic strengths.
+        Build recurrent, background, external, and feedforward weights from synapse counts and synaptic strengths.
         """
         self.recurrent_weights = self.recurrent_synapse_counts * self.recurrent_synaptic_strength
         self.background_weights = self.background_synapse_counts * self.baseline_synaptic_strength
         self.feedforward_weights = self.feedforward_synapse_counts * self.baseline_synaptic_strength
 
-    def dynamics(self, state: np.ndarray, t: float,
-                 feedforward_rate: np.ndarray, time_step: float) -> np.ndarray:
+    def dynamics(self, state: np.ndarray, t: float, *args) -> np.ndarray:
         """
         Compute the dynamics of the coupled columns.
         """
 
+        feedforward_rate = args[0]
+
         membrane_potential, adaptation = state[:self.num_populations], state[
             self.num_populations:]
 
-        firing_rate = gain_function(
-            membrane_potential - adaptation,
-            self.gain_function_parameters['gain'],
-            self.gain_function_parameters['threshold'],
-            self.gain_function_parameters['noise_factor'])
+        firing_rate = compute_firing_rate(membrane_potential, adaptation,
+                                          self.gain_function_parameters)
 
         feedforward_current = self.feedforward_weights * feedforward_rate
         background_current = self.background_weights * self.background_drive
         recurrent_current = self.recurrent_weights.dot(firing_rate)
-        total_current = feedforward_current + background_current + recurrent_current
+
+        total_current = (feedforward_current + background_current +
+                         recurrent_current) * self.time_constants['synapse']
 
         delta_membrane_potential = (
             -membrane_potential +
@@ -129,8 +162,9 @@ class CoupledColumns:
 
         return np.concatenate([delta_membrane_potential, delta_adaptation])
 
-    def simulate(self, feedforward_rate: np.ndarray, initial_conditions,
-                 simulation_time: float, time_step: float) -> np.ndarray:
+    def simulate(self, feedforward_rate: np.ndarray,
+                 initial_conditions: np.ndarray, simulation_time: float,
+                 time_step: float) -> np.ndarray:
         """
         Simulate the dynamics of the coupled columns.
         """
@@ -140,5 +174,5 @@ class CoupledColumns:
         state = odeint(self.dynamics,
                        initial_conditions,
                        time,
-                       args=(feedforward_rate, time_step))
+                       args=(feedforward_rate, ))
         return state
