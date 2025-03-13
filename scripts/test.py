@@ -1,56 +1,72 @@
-"""  
-time_step = 1e-4
-
-[protocol]
-pre_stimulus_period = 2.0
-post_stimulus_period = 0.0
-stimulus_duration = 2.0
-"""
-import tomllib
 import numpy as np
-from src.coupled_columns import CoupledColumns
-
 import matplotlib.pyplot as plt
 
-with open('config/simulation.toml', 'rb') as f:
-    simulation_parameters = tomllib.load(f)
+from src.coupled_columns import CoupledColumns
+from src.utils import load_config, create_feedforward_input, compute_firing_rate
 
-time_step = simulation_parameters['time_step']
-pre_stimulus_period = simulation_parameters['protocol']['pre_stimulus_period']
-post_stimulus_period = simulation_parameters['protocol'][
-    'post_stimulus_period']
-stimulus_duration = simulation_parameters['protocol']['stimulus_duration']
+if __name__ == '__main__':
 
-with open('config/model.toml', 'rb') as f:
-    column_parameters = tomllib.load(f)
+    # Load configurations
+    simulation_parameters = load_config('config/simulation.toml')
+    column_parameters = load_config('config/model.toml')
 
-columns = CoupledColumns(column_parameters, 'mt')
+    # Extract parameters
+    time_step = simulation_parameters['time_step']
+    protocol = simulation_parameters['protocol']
 
-plt.imshow(columns.recurrent_weights)
-plt.colorbar()
-plt.show()
+    initial_conditions = np.concatenate(
+        (simulation_parameters['initial_conditions']['membrane_potential'],
+         simulation_parameters['initial_conditions']['adaptation']))
 
-initial_conditions = np.zeros(2 * columns.num_populations)
-feedforward_rate = np.zeros(columns.num_populations)
-state = columns.simulate(feedforward_rate, initial_conditions,
-                         pre_stimulus_period, time_step)
+    layer_4_indices = column_parameters['layer_4_indices']
 
-membrane_potential = state[:, :columns.num_populations]
+    # Initialize columns
+    columns = CoupledColumns(column_parameters, 'mt')
+    states_list = []
 
-base_line_drive = 0
-delta_drive = 0
+    initial_membrane_potential = simulation_parameters['initial_conditions'][
+        'membrane_potential']
+    initial_adaptation = simulation_parameters['initial_conditions'][
+        'adaptation']
+    initial_conditions = np.concatenate(
+        (initial_membrane_potential, initial_adaptation))
 
-layer_4_indices = ([2, 3], [10, 11])
-feedforward_rate[layer_4_indices[0]] = base_line_drive + delta_drive / 2
-feedforward_rate[layer_4_indices[1]] = base_line_drive - delta_drive / 2
+    # Pre-stimulus phase
+    feedforward_rate = np.zeros(columns.num_populations)
+    state = columns.simulate(feedforward_rate, initial_conditions,
+                             protocol['pre_stimulus_period'], time_step)
 
-state = columns.simulate(feedforward_rate, state[-1], stimulus_duration,
-                         time_step)
+    # Store results
+    states_list.append(state)
 
-membrane_potential = np.concatenate(
-    (membrane_potential, state[:, :columns.num_populations]))
+    # Stimulus phase
+    feedforward_rate = create_feedforward_input(
+        columns.num_populations, layer_4_indices,
+        protocol['mean_stimulus_drive'], protocol['difference_stimulus_drive'])
+    state = columns.simulate(feedforward_rate, state[-1],
+                             protocol['stimulus_duration'], time_step)
 
-plt.plot(membrane_potential)
-plt.xlabel('Time (ms)')
-plt.ylabel('Membrane potential')
-plt.show()
+    # Store results (concatenate)
+    states_list.append(state)
+
+    # Post-stimulus phase
+    feedforward_rate = np.zeros(columns.num_populations)
+    state = columns.simulate(feedforward_rate, state[-1],
+                             protocol['post_stimulus_period'], time_step)
+
+    # Store results (concatenate)
+    states_list.append(state)
+
+    # Convert list to numpy array
+    state = np.concatenate(states_list)
+
+    # Compute firing rate
+    firing_rate = compute_firing_rate(state[:, :columns.num_populations],
+                                      state[:, columns.num_populations:],
+                                      columns.gain_function_parameters)
+    # Plot results
+    plt.figure()
+    plt.plot(firing_rate)
+    plt.xlabel('Time (ms)')
+    plt.ylabel('Firing Rate')
+    plt.show()
