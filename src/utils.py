@@ -1,5 +1,7 @@
 import tomllib
+import argparse
 import numpy as np
+
 from dataclasses import dataclass
 
 
@@ -8,6 +10,30 @@ class GainFunctionParams:
     gain: float
     threshold: float
     noise_factor: float
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse and return command-line arguments."""
+    parser = argparse.ArgumentParser()
+    parser.description = 'Run a simulation of the coupled columns model.'
+    parser.add_argument('--region',
+                        type=str,
+                        default='mt',
+                        help='Region of the brain to simulate.')
+
+    return parser.parse_args()
+
+
+def parse_region() -> str:
+    """Parse and return the region of the brain to simulate."""
+    region = parse_args().region
+    if region not in [
+            'mt', 'v1', 'v2', 'v3', 'v3a', 'mstd', 'lip', 'fef', 'fst'
+    ]:
+        raise ValueError(
+            'Invalid region. Please choose from mt, v1, v2, v3, v3a, mstd, lip, fef, or fst.'
+        )
+    return region
 
 
 def load_config(filepath: str) -> dict:

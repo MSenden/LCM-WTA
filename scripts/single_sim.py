@@ -2,9 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from src.coupled_columns import CoupledColumns
-from src.utils import load_config, create_feedforward_input, compute_firing_rate
+from src.utils import load_config, create_feedforward_input, compute_firing_rate, parse_region
 
 if __name__ == '__main__':
+
+    # Parse region
+    region_of_interest = parse_region()
 
     # Load configurations
     simulation_parameters = load_config('config/simulation.toml')
@@ -21,7 +24,7 @@ if __name__ == '__main__':
     layer_4_indices = column_parameters['layer_4_indices']
 
     # Initialize columns
-    columns = CoupledColumns(column_parameters, 'mt')
+    columns = CoupledColumns(column_parameters, region_of_interest)
     states_list = []
 
     initial_membrane_potential = simulation_parameters['initial_conditions'][
